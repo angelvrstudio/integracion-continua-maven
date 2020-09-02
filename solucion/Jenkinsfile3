@@ -1,0 +1,90 @@
+pipeline {
+
+	agent 	{ 
+		label 'docker-jenkinsslave-base' 
+	}
+			
+	tools {
+        maven 'MAVEN_3.3.9'
+        jdk 'JDK 1.8'
+    }
+	
+    stages {
+        stage('Build') { 
+            steps {
+                script{
+                    try{
+                        updateGitlabCommitStatus name: 'Build', state: 'running'
+                        configFileProvider([configFile(fileId: '257fb07b-cb6a-4282-8f8a-dd3d4df8f5e0', targetLocation: '/home/jenkins/.m2/settings.xml')]) {
+                            sh 'mvn clean compile'
+                         }
+                        updateGitlabCommitStatus name: 'Build', state: 'success'
+                    }catch(Exception e){
+                        updateGitlabCommitStatus name: 'Build', state: 'failed'
+                        exit -1
+                    }
+                }
+
+            }
+        }
+        stage('Test'){
+            steps {
+                script{
+                    try{
+                        updateGitlabCommitStatus name: 'Test', state: 'running'
+                        sh 'mvn test'
+				        sh 'mvn verify -Pcoverage'
+                        updateGitlabCommitStatus name: 'Test', state: 'success'
+                    }catch(Exception e){
+                        updateGitlabCommitStatus name: 'Test', state: 'failed'
+                         exit -1
+                    }
+                }
+            }
+        }
+		stage('Code analysis'){
+			steps{
+                script{
+                    try{
+                        updateGitlabCommitStatus name: 'Code analysis', state: 'running'
+                        sh 'mvn sonar:sonar -Dsonar.host.url=http://sonar.paradigmadigital.com:9000/sonar -Dsonar.login=gocd -Dsonar.password=sonarGoCD'
+                        updateGitlabCommitStatus name: 'Code analysis', state: 'success'
+                    }catch(Exception e){
+                        updateGitlabCommitStatus name: 'Code analysis', state: 'failed'
+                         exit -1
+                    }
+                }
+			}
+		}
+        stage('Deploy') {
+            steps {
+                script{
+                    try{
+                        updateGitlabCommitStatus name: 'Deploy', state: 'running'
+                           sh 'mvn deploy -X -DskipTests -Ddockerfile.skip'
+                        updateGitlabCommitStatus name: 'Deploy', state: 'success'
+                    }catch(Exception e){
+                        updateGitlabCommitStatus name: 'Deploy', state: 'failed'
+                         exit -1
+                    }
+                }
+			}
+
+        }
+		stage('Acceptance Test'){
+			steps{
+                script{
+                    try{
+                        updateGitlabCommitStatus name: 'Acceptance Test', state: 'running'
+                        sh 'mvn verify -Pacceptance-test'
+                        cucumber fileIncludePattern: '**/*.json', jsonReportDirectory: 'target/cucumber'
+                        updateGitlabCommitStatus name: 'Acceptance Test', state: 'success'
+                    }catch(Exception e){
+                        updateGitlabCommitStatus name: 'Acceptance Test', state: 'failed'
+                         exit -1
+                    }
+                }
+			}
+		}
+    }
+}

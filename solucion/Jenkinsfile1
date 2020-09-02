@@ -1,0 +1,30 @@
+pipeline {
+
+	agent 	{ 
+		label 'docker-jenkinsslave-base' 
+	}
+			
+	tools {
+        maven 'MAVEN_3.3.9'
+        jdk 'JDK 1.8'
+    }
+	
+    stages {
+        stage('Build') { 
+            steps {
+                sh 'mvn clean compile'    
+            }
+        }
+        stage('Test'){
+            steps {
+                sh 'mvn test'
+				sh 'mvn verify -Pcoverage'        
+            }
+        }
+		stage('Code analysis'){
+			steps{
+                sh 'mvn sonar:sonar -Dsonar.host.url=http://sonar.paradigmadigital.com:9000/sonar -Dsonar.login=gocd -Dsonar.password=sonarGoCD'
+			}
+		}
+    }
+}
